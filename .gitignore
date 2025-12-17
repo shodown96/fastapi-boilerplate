@@ -1,0 +1,8 @@
+.env
+!.env.example
+*.db
+.venv
+*.pyc
+logs
+crudadmin_data
+.DS_Store
