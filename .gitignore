@@ -6,3 +6,4 @@
 logs
 crudadmin_data
 .DS_Store
+deploy-to-lambda.yml
