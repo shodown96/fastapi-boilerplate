@@ -24,7 +24,7 @@ class ReadyCheck(BaseModel):
 
 # -------------- mixins --------------
 class UUIDSchema(BaseModel):
-    uuid: uuid_pkg.UUID = Field(default_factory=lambda: str(uuid_pkg.uuid4()))
+    id: uuid_pkg.UUID = Field(default_factory=lambda: str(uuid_pkg.uuid4()))
 
 
 class TimestampSchema(BaseModel):
@@ -66,3 +66,21 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username_or_email: str 
+
+
+
+class TokenBlacklistBase(BaseModel):
+    token: str
+    expires_at: datetime
+
+
+class TokenBlacklistRead(TokenBlacklistBase):
+    id: int
+
+
+class TokenBlacklistCreate(TokenBlacklistBase):
+    pass
+
+
+class TokenBlacklistUpdate(TokenBlacklistBase):
+    pass

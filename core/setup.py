@@ -3,13 +3,13 @@ from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
 from typing import Any
 
 import anyio
+import redis.asyncio as redis
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi import responses
 
-from core.dependencies import get_current_superuser
 from middleware.client_cache_middleware import ClientCacheMiddleware
 from models import *  # noqa: F403
 from core.config import (
@@ -24,24 +24,47 @@ from core.config import (
     RedisRateLimiterSettings,
     settings,
 )
+from arq import create_pool
+from arq.connections import RedisSettings
 from core.db import Base, SessionDep
-from core.db import async_engine
+from core.db import async_engine as engine
 from core.health import check_database_health
-
+from core.utils import cache, queue
+from middleware.client_cache_middleware import ClientCacheMiddleware
+from core.dependencies import get_current_superuser
 
 # -------------- database --------------
 async def create_tables() -> None:
-    async with async_engine.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+# -------------- cache --------------
+async def create_redis_cache_pool() -> None:
+    cache.pool = redis.ConnectionPool.from_url(settings.REDIS_CACHE_URL)
+    cache.client = redis.Redis.from_pool(cache.pool)  # type: ignore
+
+
+async def close_redis_cache_pool() -> None:
+    if cache.client is not None:
+        await cache.client.aclose()  # type: ignore
+
+
+# -------------- queue --------------
+async def create_redis_queue_pool() -> None:
+    queue.pool = await create_pool(RedisSettings(host=settings.REDIS_QUEUE_HOST, port=settings.REDIS_QUEUE_PORT))
+
+
+async def close_redis_queue_pool() -> None:
+    if queue.pool is not None:
+        await queue.pool.aclose()  # type: ignore
+
 
 
 # -------------- application --------------
 async def set_threadpool_tokens(number_of_tokens: int = 100) -> None:
-    try:
-        limiter = anyio.to_thread.current_default_thread_limiter()
-        limiter.total_tokens = number_of_tokens
-    except RuntimeError as e:
-        print("Cannot set threadpool tokens yet:", e)
+    limiter = anyio.to_thread.current_default_thread_limiter()
+    limiter.total_tokens = number_of_tokens
 
 
 def lifespan_factory(
@@ -69,6 +92,12 @@ def lifespan_factory(
         await set_threadpool_tokens()
 
         try:
+            if isinstance(settings, RedisCacheSettings):
+                await create_redis_cache_pool()
+
+            if isinstance(settings, RedisQueueSettings):
+                await create_redis_queue_pool()
+                
             if create_tables_on_start:
                 await create_tables()
 
@@ -77,7 +106,11 @@ def lifespan_factory(
             yield
 
         finally:
-            pass
+            if isinstance(settings, RedisCacheSettings):
+                await close_redis_cache_pool()
+
+            if isinstance(settings, RedisQueueSettings):
+                await close_redis_queue_pool()
 
     return lifespan
 

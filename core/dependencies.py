@@ -1,36 +1,38 @@
 from typing import Annotated, Any
-
+from sqlalchemy import select
 from fastapi import Depends, HTTPException, Request
 
+from models.user import User
 from core.db import SessionDep
 from core.exceptions.http_exceptions import ForbiddenException, UnauthorizedException
 from core.logger import logging
 from core.security import TokenType, oauth2_scheme, verify_token
-from crud import crud_users
 
 logger = logging.getLogger(__name__)
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)], db: SessionDep
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep,
 ) -> dict[str, Any]:
-    token_data = await verify_token(token, TokenType.ACCESS, db)
-    if token_data is None:
+    token_data = await verify_token(token, TokenType.ACCESS, session)
+    if not token_data:
         raise UnauthorizedException("User not authenticated.")
 
+    stmt = select(User).where(User.is_deleted.is_(False))
+
     if "@" in token_data.username_or_email:
-        user = await crud_users.get(
-            db=db, email=token_data.username_or_email, is_deleted=False
-        )
+        stmt = stmt.where(User.email == token_data.username_or_email)
     else:
-        user = await crud_users.get(
-            db=db, username=token_data.username_or_email, is_deleted=False
-        )
+        stmt = stmt.where(User.username == token_data.username_or_email)
 
-    if user:
-        return user
+    result = await session.execute(stmt)
+    user = result.scalars().one_or_none()
 
-    raise UnauthorizedException("User not authenticated.")
+    if not user:
+        raise UnauthorizedException("User not authenticated.")
+
+    return user
 
 
 async def get_optional_user(request: Request, db: SessionDep) -> dict | None:
