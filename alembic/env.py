@@ -3,8 +3,8 @@ import pkgutil
 from logging.config import fileConfig
 
 from alembic import context
-from core.config import settings
-from core.db import Base
+from app.core.config import settings
+from app.core.db import Base
 from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
@@ -28,7 +28,7 @@ def import_models(package_name):
         importlib.import_module(module_name)
 
 
-import_models("models")
+import_models("app.models")
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel

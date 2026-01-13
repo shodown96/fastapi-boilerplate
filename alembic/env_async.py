@@ -8,8 +8,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from core.config import settings
-from core.db import Base
+from app.core.config import settings
+from app.core.db import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -30,7 +30,7 @@ def import_models(package_name):
         importlib.import_module(module_name)
 
 
-import_models("models")
+import_models("app.models")
 target_metadata = Base.metadata
 
 

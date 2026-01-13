@@ -34,7 +34,7 @@ alembic current # to check things went smoothly
 
 ### 4. Run the server
 ```bash
-fastapi dev main.py
+fastapi dev 
 ```
 
 ## Docs
